@@ -6,12 +6,13 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-public class SimpleServer {
+
+public class SimpleThreadedServer {
     public static void main(String[] args) throws IOException {
         ServerSocket ss = new ServerSocket(8080);
         while (true) {
             Socket s = ss.accept(); // blocking call
-            Util.process(s);
+            new Thread(() -> Util.process(s)).start();
         }
     }
 }
