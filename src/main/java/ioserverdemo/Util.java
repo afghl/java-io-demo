@@ -7,6 +7,7 @@ import java.net.Socket;
 
 public class Util {
     public static void process(Socket s) {
+        System.out.println("dealing..." + s);
         try (
                 InputStream in = s.getInputStream();
                 OutputStream out = s.getOutputStream()
