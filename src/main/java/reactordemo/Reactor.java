@@ -1,57 +1,88 @@
 //package reactordemo;
 //
+//import java.awt.*;
 //import java.io.IOException;
 //import java.net.InetSocketAddress;
+//import java.nio.channels.SelectableChannel;
 //import java.nio.channels.SelectionKey;
 //import java.nio.channels.Selector;
 //import java.nio.channels.ServerSocketChannel;
-//import java.nio.channels.SocketChannel;
 //import java.util.Iterator;
+//import java.util.Map;
 //import java.util.Set;
+//import java.util.concurrent.Callable;
+//import java.util.concurrent.ConcurrentHashMap;
 //
-//public class Reactor implements Runnable {
-//    final Selector selector;
-//    final ServerSocketChannel serverSocket;
 //
-//    Reactor(int port) throws IOException {
-//        selector = Selector.open();
-//        serverSocket = ServerSocketChannel.open();
-//        serverSocket.socket().bind(
-//                new InetSocketAddress(port));
-//        serverSocket.configureBlocking(false);
-//        SelectionKey sk =
-//                serverSocket.register(selector,
-//                        SelectionKey.OP_ACCEPT);
-//        sk.attach(new Acceptor());
+//public class Reactor {
+//    private Map<Integer, EventHandler> registeredHandlers = new ConcurrentHashMap<>();
+//    private Selector demultiplexer;
+//
+//    public Reactor() throws Exception {
+//        demultiplexer = Selector.open();
 //    }
 //
-//    public void run() { // normally in a new Thread
+//    public void registerEventHandler(
+//        int eventType, EventHandler eventHandler) {
+//        registeredHandlers.put(eventType, eventHandler);
+//    }
+//
+//    public void registerChannel(int eventType, SelectableChannel channel) throws Exception {
+//        channel.register(demultiplexer, eventType);
+//    }
+//
+//    public void run() {
 //        try {
-//            while (!Thread.interrupted()) {
-//                selector.select();
-//                Set selected = selector.selectedKeys();
-//                Iterator it = selected.iterator();
-//                while (it.hasNext())
-//                    dispatch((SelectionKey)(it.next()));
-//                selected.clear();
-//            }
-//        } catch (IOException ex) { /* ... */ }
-//    }
+//            while (true) { // Loop indefinitely
+//                demultiplexer.select();
+//                Set<SelectionKey> readyHandles = demultiplexer.selectedKeys();
+//                Iterator<SelectionKey> handleIterator = readyHandles.iterator();
+//                while (handleIterator.hasNext()) {
+//                    SelectionKey handle = handleIterator.next();
+//                    if (handle.isAcceptable()) {
+//                        EventHandler handler = registeredHandlers.get(SelectionKey.OP_ACCEPT);
+//                        handler.handleEvent(handle);
+//                    }
 //
-//    void dispatch(SelectionKey k) {
-//        Runnable r = (Runnable)(k.attachment());
-//        if (r != null)
-//            r.run();
-//    }
+//                    if (handle.isReadable()) {
+//                        EventHandler handler = registeredHandlers.get(SelectionKey.OP_READ);
+//                        handler.handleEvent(handle);
+//                        handleIterator.remove();
+//                    }
 //
-//    class Acceptor implements Runnable { // inner
-//        public void run() {
-//            try {
-//                SocketChannel c = serverSocket.accept();
-//                if (c != null)
-//                    new Handler(selector, c);
+//                    if (handle.isWritable()) {
+//                        EventHandler handler = registeredHandlers.get(SelectionKey.OP_WRITE);
+//                        handler.handleEvent(handle);
+//                        handleIterator.remove();
+//                    }
+//                }
 //            }
-//            catch(IOException ex) { /* ... */ }
+//        } catch (Exception e) {
+//            e.printStackTrace();
 //        }
 //    }
+//
+//    public static void main(String[] args) throws Exception {
+//        ServerSocketChannel server = ServerSocketChannel.open();
+//        server.socket().bind(new InetSocketAddress(8080));
+//        server.configureBlocking(false);
+//        Reactor reactor = new Reactor();
+//
+//        reactor.registerChannel(SelectionKey.OP_ACCEPT, server);
+//
+//        reactor.registerEventHandler(
+//                SelectionKey.OP_ACCEPT, new AcceptEventHandler());
+//
+//        reactor.registerEventHandler(
+//                SelectionKey.OP_READ, new ReadEventHandler());
+//
+//        reactor.registerEventHandler(
+//                SelectionKey.OP_WRITE, new WriteEventHandler());
+//
+//        reactor.run();
+//    }
+//}
+//
+//abstract class EventHandler implements Callable {
+//    abstract public void handleEvent(SelectionKey event);
 //}
